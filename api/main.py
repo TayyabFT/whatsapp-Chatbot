@@ -26,43 +26,30 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_with_bot(request: ChatRequest):
-    """Get a response from JapaMate Bot"""
-    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    
     if not OPENROUTER_API_KEY:
-        raise HTTPException(status_code=500, detail="API key not configured")
-    
-    prompt = f"""
-    You are a helpful assistant named JapaMate Bot that supports users based on their role.
-    
-    User Role: {request.role}
-    Question: {request.question}
-    
-    Answer helpfully and kindly based on the role.
-    """
-    
+        raise HTTPException(status_code=500, detail="OpenRouter API key not configured")
+
     try:
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://japamate-bot.vercel.app",
-                "X-Title": "JapaMate Bot API",
+                "HTTP-Referer": "https://whatsapp-chatbot-sigma-three.vercel.app",  # Your Vercel URL
+                "X-Title": "WhatsApp ChatBot"  # Any identifiable name
             },
             data=json.dumps({
                 "model": "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}]
+                "messages": [{"role": "user", "content": f"Role: {request.role}\nQuestion: {request.question}"}]
             }),
-            timeout=30
+            timeout=10
         )
-        response.raise_for_status()
-        return {
-            "response": response.json()["choices"][0]["message"]["content"],
-            "status": "success"
-        }
+        response.raise_for_status()  # Raise HTTP errors
+        return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/")
 async def health_check():
     return {"status": "healthy"}
