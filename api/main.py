@@ -37,8 +37,8 @@ async def chat_with_bot(request: ChatRequest):
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://whatsapp-chatbot-sigma-three.vercel.app",  # Your Vercel URL
-                "X-Title": "WhatsApp ChatBot"  # Any identifiable name
+                "HTTP-Referer": "https://whatsapp-chatbot-sigma-three.vercel.app",
+                "X-Title": "WhatsApp ChatBot"
             },
             data=json.dumps({
                 "model": "deepseek/deepseek-chat",
@@ -46,8 +46,16 @@ async def chat_with_bot(request: ChatRequest):
             }),
             timeout=10
         )
-        response.raise_for_status()  # Raise HTTP errors
+        response.raise_for_status()
         return response.json()
+    except requests.exceptions.HTTPError as http_err:
+        # Log the full response for debugging
+        error_detail = {
+            "status_code": response.status_code,
+            "detail": str(http_err),
+            "response_text": response.text
+        }
+        raise HTTPException(status_code=500, detail=error_detail)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 @app.get("/")
