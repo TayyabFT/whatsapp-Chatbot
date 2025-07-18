@@ -1,14 +1,14 @@
 # ===== IMPORTS =====
-from dotenv import load_dotenv  # THIS WAS MISSING
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.request_validator import RequestValidator
 from openai import OpenAI
 from fuzzywuzzy import fuzz
+from typing import Optional, Dict
 import os
 import logging
-from typing import Dict
 
 # Load environment variables
 load_dotenv()
@@ -155,6 +155,22 @@ def generate_response(text: str, persona: str, context: list) -> str:
         return PERSONAS[persona]["fallback"]
 
 # ======================
+# CAMPAIGN DETECTION
+# ======================
+
+CAMPAIGN_TRIGGERS = {
+    "test_campaign": ["test drive", "try campaign", "demo mode", "campaign test"],
+    "feedback": ["give feedback", "share thoughts", "how did i do"]
+}
+
+def detect_campaign(text: str) -> Optional[str]:
+    text = text.lower()
+    for campaign, triggers in CAMPAIGN_TRIGGERS.items():
+        if any(trigger in text for trigger in triggers):
+            return campaign
+    return None
+
+# ======================
 # TWILIO WEBHOOK
 # ======================
 
@@ -165,26 +181,37 @@ async def twilio_webhook(request: Request):
         from_number = form_data.get('From')
         body = form_data.get('Body', '').strip()
         
+        # Check for campaigns first
+        campaign = detect_campaign(body)
+        if campaign == "test_campaign":
+            twiml = MessagingResponse()
+            twiml.message("""🚀 Launching Test Campaign!
+You'll receive:
+1. Sample career questions (Jayjay)
+2. Emotional support scenarios (Queen)
+3. Feedback request after 5 messages
+Reply STOP to opt out""")
+            return Response(content=str(twiml), media_type="application/xml")
+        
         # Validate Twilio signature
         validator = RequestValidator(os.getenv('TWILIO_AUTH_TOKEN'))
         signature = request.headers.get('X-TWILIO-SIGNATURE', '')
         if not validator.validate(str(request.url).split('?')[0], dict(form_data), signature):
             raise HTTPException(status_code=400, detail="Invalid signature")
         
-        # Get session and detect persona
+        # Process normal messages
         session = get_session(from_number)
         if not session["persona"]:
             session["persona"] = detect_intent(body)
         
-        # Generate response
         response_text = generate_response(body, session["persona"], session["context"])
         
-        # Update context (last 5 messages)
+        # Update context
         session["context"].append({"role": "user", "content": body})
         session["context"].append({"role": "assistant", "content": response_text})
         session["context"] = session["context"][-10:]  # Keep last 5 exchanges
         
-        # Return TwiML response
+        # Return response
         twiml = MessagingResponse()
         twiml.message(response_text)
         return Response(content=str(twiml), media_type="application/xml")
