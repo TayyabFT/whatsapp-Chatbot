@@ -19,8 +19,11 @@ logging.basicConfig(level=logging.INFO, filename="chatbot.log",
 logger = logging.getLogger(__name__)
 
 # Initialize clients
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=30.0,  # Recommended timeout
+    max_retries=3  # Recommended retries
+)
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
